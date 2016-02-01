@@ -12,6 +12,7 @@ Requirements:
 Instructions:
 
 1) Installing the database
+
 	a) Navigate to folder containing "tournament.sql" 
 	b) run psql
 	c) run "\i tournament.sql"
@@ -27,3 +28,4 @@ Bonus features:
 	1) Able to handle odd number of players
 	2) Prevents rematches between players
 	3) Support games where a draw is possible
+	4) More rigorous unit testing

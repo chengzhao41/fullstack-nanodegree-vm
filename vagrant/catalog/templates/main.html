@@ -1,0 +1,18 @@
+<html>
+<head>
+<h1>
+	Catalog App
+</h1>
+</head>
+
+<body>
+	{% for category in categories %}
+		<p><a href= '{{url_for('category', category_name = category.name) }}'>{{category.name}}</a></p>
+	{% endfor %}
+
+	{% for i in items %}
+		<p>{{i.name}} ({{i.category.name}})</p>
+	{% endfor %}
+</body>
+
+</html>

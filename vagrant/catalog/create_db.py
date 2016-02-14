@@ -12,7 +12,7 @@ class Category(Base):
 
 	id = Column(Integer, primary_key=True)
 	name = Column(String(250), nullable=False)
-	items = relationship("Item", backref=backref("Category", cascade="all, delete-orphan", single_parent=True))
+	items = relationship("Item", single_parent=True)
 
 	@property
 	def serialize(self):

@@ -83,14 +83,19 @@ def updateItem(item_name):
 
 # JSON ENDPOINT
 @app.route('/catalog.json')
-def categoryJSON():
+def catalogJSON():
 	categories = session.query(Category)
 	return jsonify(Category = [c.serialize for c in categories])
 
+@app.route('/catalog/<category_name>.json')
+def categoryJSON(category_name):
+	category = session.query(Category).filter_by(name=category_name).one()
+	return jsonify(Category = category.serialize)
+
 @app.route('/catalog/<category_name>/<item_name>.json')
-def itemJSON(item_id):
-	categories = session.query(Category)
-	return jsonify(Category = [c.serialize for c in categories])
+def itemJSON(category_name, item_name):
+	item = session.query(Item).filter_by(name=item_name).one()
+	return jsonify(Item = item.serialize)
 
 
 # if run as a main function

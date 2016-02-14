@@ -39,7 +39,16 @@ def item(category_name, item_name):
 	return render_template('item.html', item=item, category=category)
 
 # CRUD functions
-@app.route("/catalog/<category_name>/delete")
+@app.route("/catalog/<item_name>/delete", methods=['GET', 'POST'])
+def deleteItem(item_name):
+	itemToDelete = session.query(Item).filter_by(name=item_name).one()
+	if request.method == 'POST':
+		category_name = itemToDelete.category.name
+		session.delete(itemToDelete)
+		session.commit()
+		return redirect(url_for('category', category_name=category_name))
+	else:
+		return render_template('deleteItem.html', item=itemToDelete)
 
 @app.route("/catalog/<category_name>/new", methods=['GET', 'POST'])
 def newItem(category_name):

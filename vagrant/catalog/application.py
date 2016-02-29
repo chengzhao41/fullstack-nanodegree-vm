@@ -82,33 +82,23 @@ def gconnect():
 		response.headers['Content-Type'] = 'application/json'
 		return response
 
-	print 'access token is valid for this app'
-
 	# Store the access token in the session for later use.
 	login_session['credentials'] = credentials
 	login_session['gplus_id'] = gplus_id
-
-	print 'getting user info'
+	# ADD PROVIDER TO LOGIN SESSION
+	login_session['provider'] = 'google'
 
 	# Get user info
 	userinfo_url = "https://www.googleapis.com/oauth2/v1/userinfo"
 	params = {'access_token': credentials.access_token, 'alt': 'json'}
 	answer = requests.get(userinfo_url, params=params)
-
 	data = answer.json()
-
-	print data['name']
-	print data['email']
-
 	login_session['username'] = data['name']
 	login_session['picture'] = data['picture']
 	login_session['email'] = data['email']
 
 	# See if a user exists, if it doesn't make a new one
 	user_id = getUserID(login_session['email'])
-
-	print user_id
-
 	if not user_id:
 		user_id = createUser(login_session)
 		login_session['user_id'] = user_id
@@ -130,41 +120,55 @@ def gconnect():
 	print output
 	return output
 
-@app.route('/gdisconnect', methods=['GET'])
+@app.route('/gdisconnect')
 def gdisconnect():
-	# Only disconnect a connected user.
-	access_token = login_session.get('access_token')
-	if access_token is None:
-		response = make_response(
-			json.dumps('Current user not connected.'), 401)
-		response.headers['Content-Type'] = 'application/json'
-		return response
-	url = 'https://accounts.google.com/o/oauth2/revoke?token=%s' % access_token
-	h = httplib2.Http()
-	result = h.request(url, 'GET')[0]
-	if result['status'] == '200':
-		# Reset the user's sesson.
-		del login_session['access_token']
-		del login_session['gplus_id']
-		del login_session['username']
-		del login_session['email']
-		del login_session['picture']
+    # Only disconnect a connected user.
+    credentials = login_session.get('credentials')
+    if credentials is None:
+        response = make_response(
+            json.dumps('Current user not connected.'), 401)
+        response.headers['Content-Type'] = 'application/json'
+        return response
+    access_token = credentials.access_token
+    url = 'https://accounts.google.com/o/oauth2/revoke?token=%s' % access_token
+    h = httplib2.Http()
+    result = h.request(url, 'GET')[0]
+    if result['status'] != '200':
+        # For whatever reason, the given token was invalid.
+        response = make_response(
+            json.dumps('Failed to revoke token for given user.', 400))
+        response.headers['Content-Type'] = 'application/json'
+        return response
 
-		response = make_response(json.dumps('Successfully disconnected.'), 200)
-		response.headers['Content-Type'] = 'application/json'
-		return response
-	else:
-		# For whatever reason, the given token was invalid.
-		response = make_response(
-			json.dumps('Failed to revoke token for given user.', 400))
-		response.headers['Content-Type'] = 'application/json'
-		return response
+# Disconnect based on provider
+@app.route('/disconnect')
+def disconnect():
+    if 'provider' in login_session:
+        if login_session['provider'] == 'google':
+            gdisconnect()
+            del login_session['gplus_id']
+            del login_session['credentials']
+        if login_session['provider'] == 'facebook':
+            fbdisconnect()
+            del login_session['facebook_id']
+        del login_session['username']
+        del login_session['email']
+        del login_session['picture']
+        del login_session['user_id']
+        del login_session['provider']
+        flash("You have successfully been logged out.")
+        return redirect(url_for('showAllCategories'))
+    else:
+        flash("You were not logged in")
+        return redirect(url_for('showAllCategories'))
 
 # Show all categories
 @app.route('/')
 @app.route('/catalog')
 @app.route('/catalog/')
-def ShowAllCategories():
+def showAllCategories():
+	print login_session['email']
+	print login_session['user_id']
 	categories = session.query(Category)
 	items = session.query(Item)
 	return render_template(\
@@ -184,9 +188,6 @@ def category(category_name):
 @app.route('/catalog/<category_name>/<item_name>/')
 def item(category_name, item_name):
 	item = session.query(Item).filter_by(name=item_name).one()
-	print item.user_id
-	print login_session['email']
-	print login_session['user_id']
 	if 'user_id' not in login_session or item.user_id != login_session['user_id']:
 		print 'public item!'
 		return render_template('publicItem.html', item=item, category=category)
@@ -276,7 +277,7 @@ def createUser(login_session):
 
 def updateUser(login_session):
 	user = session.query(User).filter_by(id=login_session['user_id']).one()
-	user.name = login_session['name']
+	user.name = login_session['username']
 	user.picture = login_session['picture']
 	session.add(user)
 	session.commit()

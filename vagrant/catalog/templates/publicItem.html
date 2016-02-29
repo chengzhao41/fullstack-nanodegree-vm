@@ -1,14 +1,9 @@
-<html>
-<head>
-<h1>
-	Catalog App
-</h1>
-</head>
+{% extends "base.html" %}
+{% block content %}
+{% include "header.html" %}
 
-<body>
-	<h3>{{item.category.name}}</h3>
-	<p>{{item.name}}</p>
-	<p>{{item.description}}</p>
-</body>
+<h3>{{item.category.name}}</h3>
+<p>{{item.name}}</p>
+<p>{{item.description}}</p>
 
-</html>
+{% endblock %}

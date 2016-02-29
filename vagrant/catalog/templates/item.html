@@ -1,15 +1,11 @@
-<html>
-<head>
-<h1>
-	Catalog App
-</h1>
-</head>
+{% extends "base.html" %}
+{% block content %}
+{% include "header.html" %}
 
-<body>
-	<h3>{{ item.category.name }}</h3>
-	<p>{{ item.name }}</p>
-	<p>{{ item.description }}</p>
-</body>
+<h3>{{ item.category.name }}</h3>
+<p>{{ item.name }}</p>
+<p>{{ item.description }}</p>
+
 
 <div class="row padding-top padding-bottom">
 	<div class="col-md-1"></div>
@@ -28,4 +24,4 @@
 	<div class="col-md-7"></div>
 </div>
 
-</html>
+{% endblock %}

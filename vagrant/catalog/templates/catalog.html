@@ -1,16 +1,21 @@
-<html>
-<head>
-<h1>
-	Catalog App
-</h1>
-</head>
+{% extends "base.html" %}
+{% block content %}
+{% include "header.html" %}
 
-<body>
-		<p>{{category.name}}</p>
+<h3>{{category.name}}</h3>
 
-	{% for i in items %}
-		<p><a href= '{{url_for('item', category_name = category.name, item_name = i.name) }}'>{{i.name}}</a></p>
-	{% endfor %}
-</body>
+<div class="row padding-top padding-bottom">
+	<div class="col-md-11 padding-none">
+		<a href="{{url_for('newItem', category_name = category.name )}}">
+			<button class="btn btn-default" id="new-item">
+				<span class="glyphicon glyphicon-plus" aria-hidden="true"></span>Add Item
+			</button>
+		</a>
+	</div>
+</div>
 
-</html>
+{% for i in items %}
+	<p><a href= '{{url_for('item', category_name = category.name, item_name = i.name) }}'>{{i.name}}</a></p>
+{% endfor %}
+
+{% endblock %}

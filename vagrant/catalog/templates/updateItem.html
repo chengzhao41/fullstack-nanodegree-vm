@@ -1,43 +1,31 @@
-<html>
-<head>
-	<link rel=stylesheet type=text/css href="{{ url_for('static', filename='styles.css') }}">
-	</head>
-<body>
-
-<h1>New Catalog Item</h1>
+{% extends "base.html" %}
+{% block content %}
+{% include "header.html" %}
 
 <div class = 'pane'>
-<form action="{{ url_for('updateItem', item_name=item.name )}}" method = 'post'>
+	<form action="{{ url_for('updateItem', item_name=item.name )}}" method = 'post'>
+	<dl>
+		<dt>Title:</dt>
+			<dd><input type ='text' size='30' name='name' value = '{{item.name}}' required></dd>
+		<dt>Description:</dt>
+			<dd><textarea name = 'description' rows='5' cols='40' required>{{item.description}}</textarea></dd>
+		<dt>Category:</dt>
+			<dd>
+				<select name="category_name">
+					{% for category in categories %}
+						{% if item.category.name == category.name %}
+							<option value="{{category.name}}" selected="selected">{{ category.name }}</option>
+						{% else %}
+							<option value="{{category.name}}">{{ category.name }}</option>
+						{% endif %}
+				  	{% endfor %}
+			  	</select>
+			</dd>
+	</dl>
 
-<dl>
-	<dt>Title:</dt>
-		<dd><input type ='text' size='30' name='name' value = '{{item.name}}' required></dd>
-      <dt>Description:</dt>
-            <dd><textarea name = 'description' rows='5' cols='40' required>{{item.description}}</textarea></dd>
-      <dt>Category:</dt>
-            <dd>
-                  <select name="category_name">
-                  {% for category in categories %}
-                        {% if item.category.name == category.name %}
-                              <option value="{{category.name}}" selected="selected">{{ category.name }}</option>
-                        {% else %}
-                              <option value="{{category.name}}">{{ category.name }}</option>
-                        {% endif %}
-                  {% endfor %}
-                  </select>
-            </dd>
-
-</dl>
-
-
-<input type='submit' value='Update'>
-
-</form>
+	<input type='submit' value='Update'>
+	<a href = '{{url_for('category', category_name = item.category.name)}}'>Cancel</a>
+	</form>
 </div>
 
-</body>
-
-
-
-
-</html>
+{% endblock %}

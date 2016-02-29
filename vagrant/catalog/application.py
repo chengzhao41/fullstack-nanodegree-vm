@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session as login_session, make_response, flash
 from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker
-from create_db import Base, Category, Item
+from create_db import Base, Category, Item, User
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import FlowExchangeError
 import httplib2
@@ -34,7 +34,6 @@ def showLogin():
 
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
-	print 'server side gconnect'
 	# Validate state token
 	if request.args.get('state') != login_session['state']:
 		response = make_response(json.dumps('Invalid state parameter.'), 401)
@@ -50,8 +49,7 @@ def gconnect():
 		oauth_flow.redirect_uri = 'postmessage'
 		credentials = oauth_flow.step2_exchange(code)
 	except FlowExchangeError:
-		response = make_response(
-			json.dumps('Failed to upgrade the authorization code.'), 401)
+		response = make_response(json.dumps('Failed to upgrade the authorization code.'), 401)
 		response.headers['Content-Type'] = 'application/json'
 		print 'flow exception'
 		return response
@@ -84,17 +82,13 @@ def gconnect():
 		response.headers['Content-Type'] = 'application/json'
 		return response
 
-	stored_credentials = login_session.get('credentials')
-	stored_gplus_id = login_session.get('gplus_id')
-	if stored_credentials is not None and gplus_id == stored_gplus_id:
-		response = make_response(json.dumps('Current user is already connected.'),
-								 200)
-		response.headers['Content-Type'] = 'application/json'
-		return response
+	print 'access token is valid for this app'
 
 	# Store the access token in the session for later use.
 	login_session['credentials'] = credentials
 	login_session['gplus_id'] = gplus_id
+
+	print 'getting user info'
 
 	# Get user info
 	userinfo_url = "https://www.googleapis.com/oauth2/v1/userinfo"
@@ -103,11 +97,26 @@ def gconnect():
 
 	data = answer.json()
 
+	print data['name']
+	print data['email']
+
 	login_session['username'] = data['name']
 	login_session['picture'] = data['picture']
 	login_session['email'] = data['email']
 
 	# See if a user exists, if it doesn't make a new one
+	user_id = getUserID(login_session['email'])
+
+	print user_id
+
+	if not user_id:
+		user_id = createUser(login_session)
+		login_session['user_id'] = user_id
+	else:
+		login_session['user_id'] = user_id
+		updateUser(login_session)
+
+	print login_session['user_id']
 
 	output = ''
 	output += '<h1>Welcome, '
@@ -118,6 +127,7 @@ def gconnect():
 	output += ' " style = "width: 300px; height: 300px;border-radius: 150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
 	flash("you are now logged in as %s" % login_session['username'])
 	print "done!"
+	print output
 	return output
 
 @app.route('/gdisconnect', methods=['GET'])
@@ -173,16 +183,26 @@ def category(category_name):
 @app.route('/catalog/<category_name>/<item_name>')
 @app.route('/catalog/<category_name>/<item_name>/')
 def item(category_name, item_name):
-	print item_name
 	item = session.query(Item).filter_by(name=item_name).one()
-	return render_template('item.html', item=item, category=category)
+	print item.user_id
+	print login_session['email']
+	print login_session['user_id']
+	if 'user_id' not in login_session or item.user_id != login_session['user_id']:
+		print 'public item!'
+		return render_template('publicItem.html', item=item, category=category)
+	else:
+		print 'user item!'
+		return render_template('item.html', item=item, category=category)
 
 # CRUD functions
 @app.route("/catalog/<item_name>/delete", methods=['GET', 'POST'])
 def deleteItem(item_name):
-	if 'username' not in login_session:
+	if 'user_id' not in login_session:
 		return redirect('/login')
 	itemToDelete = session.query(Item).filter_by(name=item_name).one()
+	if login_session['user_id'] != itemToDelete.user_id:
+		return "<script>function myFunction() {alert('You are not authorized to delete this item, as it is not yours.');}</script>" \
+		+ "<body onload='myFunction()''>"
 	if request.method == 'POST':
 		category_name = itemToDelete.category.name
 		session.delete(itemToDelete)
@@ -197,7 +217,8 @@ def newItem(category_name):
 		return redirect('/login')
 	if request.method == 'POST':
 		category = session.query(Category).filter_by(name=request.form['category_name']).one()
-		newItem = Item(name=request.form['name'], description=request.form['description'], category_id=category.id)
+		newItem = Item(name=request.form['name'], description=request.form['description'], category_id=category.id, \
+			user_id=getUserID(login_session['email']))
 		session.add(newItem)
 		session.commit()
 		return redirect(url_for('item', category_name=request.form['category_name'], item_name=newItem.name))
@@ -210,6 +231,8 @@ def updateItem(item_name):
 	if 'username' not in login_session:
 		return redirect('/login')
 	editItem = session.query(Item).filter_by(name=item_name).one()
+	if login_session['user_id'] != editItem.user_id:
+		return "<script>function myFunction() {alert('You are not authorized to edit this item, as it is not yours.');}</script><body onload='myFunction()''>"
 	if request.method == 'POST':
 		if request.form['name']:
 			editItem.name = request.form['name']
@@ -242,6 +265,32 @@ def itemJSON(category_name, item_name):
 	item = session.query(Item).filter_by(name=item_name).one()
 	return jsonify(Item = item.serialize)
 
+# User Helper Functions
+def createUser(login_session):
+	newUser = User(name=login_session['username'], email=login_session[
+				   'email'], picture=login_session['picture'])
+	session.add(newUser)
+	session.commit()
+	user = session.query(User).filter_by(email=login_session['email']).one()
+	return user.id
+
+def updateUser(login_session):
+	user = session.query(User).filter_by(id=login_session['user_id']).one()
+	user.name = login_session['name']
+	user.picture = login_session['picture']
+	session.add(user)
+	session.commit()
+
+def getUser(user_id):
+	user = session.query(User).filter_by(id=user_id).one()
+	return user
+
+def getUserID(email):
+	try:
+		user = session.query(User).filter_by(email=email).one()
+		return user.id
+	except:
+		return None
 
 # if run as a main function
 if __name__ == '__main__':

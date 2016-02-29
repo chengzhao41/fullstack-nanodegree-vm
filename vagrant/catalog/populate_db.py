@@ -15,7 +15,7 @@ session.query(User).delete()
 session.commit()
 
 # Users
-user1 = User(name = "Adams Bob", email = "default_user1@fake.com")
+user1 = User(name = "Cheng Zhao", email = "chengzhao41@gmail.com", picture='https://0.academia-photos.com/7017352/2694640/3136697/s200_cheng.zhao.jpg')
 session.add(user1)
 
 # Categories for items

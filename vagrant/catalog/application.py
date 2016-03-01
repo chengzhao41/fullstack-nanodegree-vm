@@ -26,10 +26,12 @@ session = DBSession()
 # Create anti-forgery state token
 @app.route('/login')
 def showLogin():
+	# clearing the login session just in case
+	login_session.clear()
 	state = ''.join(random.choice(string.ascii_uppercase + string.digits)
 					for x in xrange(32))
 	login_session['state'] = state
-	print "The current session state is %s" % login_session['state']
+	print login_session
 	return render_template('login.html', STATE=state)
 
 @app.route('/gconnect', methods=['POST'])
@@ -107,7 +109,8 @@ def gconnect():
 		login_session['user_id'] = user_id
 		updateUser(login_session)
 
-	print login_session['user_id']
+	print "End of gconnect"
+	print login_session
 
 	output = ''
 	output += '<h1>Welcome, '
@@ -117,8 +120,6 @@ def gconnect():
 	output += login_session['picture']
 	output += ' " style = "width: 300px; height: 300px;border-radius: 150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
 	flash("you are now logged in as %s" % login_session['username'])
-	print "done!"
-	print output
 	return output
 
 @app.route('/gdisconnect')
@@ -131,6 +132,7 @@ def gdisconnect():
 		response.headers['Content-Type'] = 'application/json'
 		return response
 	access_token = credentials.access_token
+	print access_token
 	url = 'https://accounts.google.com/o/oauth2/revoke?token=%s' % access_token
 	h = httplib2.Http()
 	result = h.request(url, 'GET')[0]
@@ -163,7 +165,6 @@ def fbconnect():
 	userinfo_url = "https://graph.facebook.com/v2.4/me"
 	# strip expire tag from access token
 	token = result.split("&")[0]
-
 
 	url = 'https://graph.facebook.com/v2.4/me?%s&fields=name,id,email' % token
 	h = httplib2.Http()
@@ -209,18 +210,24 @@ def fbconnect():
 	output += ' " style = "width: 300px; height: 300px;border-radius: 150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
 
 	flash("Now logged in as %s" % login_session['username'])
-	print login_session['user_id']
+
+	print "End of fbconnect"
+	print login_session
+	
 	return output
 
 @app.route('/fbdisconnect')
 def fbdisconnect():
-    facebook_id = login_session['facebook_id']
-    # The access token must me included to successfully logout
-    access_token = login_session['access_token']
-    url = 'https://graph.facebook.com/%s/permissions?access_token=%s' % (facebook_id,access_token)
-    h = httplib2.Http()
-    result = h.request(url, 'DELETE')[1]
-    return "you have been logged out"
+	if 'facebook_id' in login_session and 'access_token' in login_session:
+		facebook_id = login_session['facebook_id']
+		# The access token must me included to successfully logout
+		access_token = login_session['access_token']
+		url = 'https://graph.facebook.com/%s/permissions?access_token=%s' % (facebook_id,access_token)
+		h = httplib2.Http()
+		result = h.request(url, 'DELETE')[1]
+		return "you have been logged out"
+	else:
+		return "no fb access_token found"
 
 # Disconnect based on provider
 @app.route('/disconnect')
@@ -242,6 +249,9 @@ def disconnect():
 		flash("You have successfully been logged out.")
 		return redirect(url_for('showAllCategories'))
 	else:
+		print "no provider"
+		# clearing the login session just in case
+		login_session.clear()
 		flash("You were not logged in")
 		return redirect(url_for('showAllCategories'))
 
@@ -250,10 +260,7 @@ def disconnect():
 @app.route('/catalog')
 @app.route('/catalog/')
 def showAllCategories():
-	if 'user_id' in login_session:
-		print login_session['user_id']
-	if 'email' in login_session:
-		print login_session['email']
+	print login_session
 	categories = session.query(Category)
 	items = session.query(Item)
 	return render_template(\

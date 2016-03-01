@@ -4,6 +4,7 @@
 
 <h3>{{ item.category.name }}</h3>
 <p>{{ item.name }}</p>
+<img src="{{ url_for('static', filename='item.picture') }}" alt="{{ item.name }}" style="width:300px;height:200px;">
 <p>{{ item.description }}</p>
 
 

@@ -10,7 +10,7 @@ import requests
 import random
 import string
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path = "/static", static_folder = "static")
 
 CLIENT_ID = json.loads(
 	open('client_secrets.json', 'r').read())['web']['client_id']

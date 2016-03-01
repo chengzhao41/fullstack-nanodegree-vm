@@ -23,18 +23,21 @@ basketball = Category(name = "Basketball")
 session.add(basketball)
 
 basketballItem1 = Item(name = "Basketball Shoes", \
-	description = "The first basketball shoes were designed by the Spalding as early as 1907.", category = basketball, user = user1)
+	description = "The first basketball shoes were designed by the Spalding as early as 1907.", category = basketball, user = user1, \
+	picture = "basketball_shoes.jpg")
 session.add(basketballItem1)
 
 basketballItem2 = Item(name = "Basketball", \
-	description = "A basketball is a spherical inflated ball used in a game of basketball.", category = basketball, user = user1)
+	description = "A basketball is a spherical inflated ball used in a game of basketball.", category = basketball, user = user1, \
+	picture = "basketball.png")
 session.add(basketballItem2)
 
 tennis = Category(name = "Tennis")
 session.add(tennis)
 
 tennisItem1 = Item(name = "Tennis Racket", \
-	description = "The parts of a tennis racket are the head, rim, face, neck, butt/butt cap, handle and strings.", category = tennis, user = user1)
+	description = "The parts of a tennis racket are the head, rim, face, neck, butt/butt cap, handle and strings.", category = tennis, user = user1, \
+	picture = "tennis_racket.jpg")
 session.add(tennisItem1)
 
 surfing = Category(name = "Surfing")

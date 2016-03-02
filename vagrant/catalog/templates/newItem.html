@@ -5,7 +5,7 @@
 <h2>New Catalog Item</h2>
 
 <div class = 'pane'>
-	<form action="{{ url_for('newItem', category_name=category_name )}}" method = 'post'>
+	<form action="{{ url_for('newItem', category_name=category_name )}}" method = 'post' enctype = multipart/form-data>
 			<dl>
 				<dt>Title:</dt>
 					<dd><input type ='text' size='30' name='name' required></dd>
@@ -23,6 +23,8 @@
 						{% endfor %}
 						</select>
 					</dd>
+				<dt>Upload Picture:</dt>
+					<dd><input type=file name=file></dd>
 			</dl>
 		<input type='submit' value='Create'>
 		<a href = '{{url_for('category', category_name = category_name)}}'>Cancel</a>

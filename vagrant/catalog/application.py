@@ -1,16 +1,24 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session as login_session, make_response, flash
+from flask import Flask, render_template, jsonify, request, redirect, url_for, \
+session as login_session, make_response, flash, send_from_directory, safe_join
+
 from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker
 from create_db import Base, Category, Item, User
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import FlowExchangeError
+from werkzeug import secure_filename
 import httplib2
 import json
 import requests
 import random
 import string
+import os
 
-app = Flask(__name__, static_url_path = "/static", static_folder = "static")
+app = Flask(__name__, static_url_path = "/images", static_folder = "images")
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+UPLOAD_FOLDER = '/Users/chengzhao/Git/fullstack-nanodegree-vm/vagrant/catalog/images'
+ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 CLIENT_ID = json.loads(
 	open('client_secrets.json', 'r').read())['web']['client_id']
@@ -280,12 +288,14 @@ def category(category_name):
 @app.route('/catalog/<category_name>/<item_name>/')
 def item(category_name, item_name):
 	item = session.query(Item).filter_by(name=item_name).one()
+	filename = str(item.user_id) + "_" + item.picture
+	print filename
 	if 'user_id' not in login_session or item.user_id != login_session['user_id']:
 		print 'public item!'
-		return render_template('publicItem.html', item=item, category=category)
+		return render_template('publicItem.html', item=item, category=category, filename = filename)
 	else:
 		print 'user item!'
-		return render_template('item.html', item=item, category=category)
+		return render_template('item.html', item=item, category=category, filename = filename)
 
 # CRUD functions
 @app.route("/catalog/<item_name>/delete", methods=['GET', 'POST'])
@@ -298,6 +308,9 @@ def deleteItem(item_name):
 		+ "<body onload='myFunction()''>"
 	if request.method == 'POST':
 		category_name = itemToDelete.category.name
+		# delete file if it exists
+		if (os.path.isfile(safe_join(app.config['UPLOAD_FOLDER'], str(itemToDelete.user_id) + "_" + itemToDelete.picture))):
+			os.remove(safe_join(app.config['UPLOAD_FOLDER'], str(itemToDelete.user_id) + "_" + itemToDelete.picture))
 		session.delete(itemToDelete)
 		session.commit()
 		return redirect(url_for('category', category_name=category_name))
@@ -309,9 +322,16 @@ def newItem(category_name):
 	if 'username' not in login_session:
 		return redirect('/login')
 	if request.method == 'POST':
+		file = request.files['file']
+		if file and allowed_file(file.filename):
+			print 'saving files...'
+			filename = secure_filename(file.filename)
+			file.save(safe_join(app.config['UPLOAD_FOLDER'], str(getUserID(login_session['email'])) + "_" + filename))
+			print 'saved!'
+			
 		category = session.query(Category).filter_by(name=request.form['category_name']).one()
 		newItem = Item(name=request.form['name'], description=request.form['description'], category_id=category.id, \
-			user_id=getUserID(login_session['email']))
+			user_id=getUserID(login_session['email']), picture=filename)
 		session.add(newItem)
 		session.commit()
 		return redirect(url_for('item', category_name=request.form['category_name'], item_name=newItem.name))
@@ -335,6 +355,20 @@ def updateItem(item_name):
 			category = session.query(Category).filter_by(name=request.form['category_name']).one()
 			editItem.category = category
 			editItem.category_id = category.id
+		file = request.files['file']
+		if file and allowed_file(file.filename):
+			print 'updating files...'
+			filename = secure_filename(file.filename)
+
+			# delete old file if it exists
+			if (os.path.isfile(safe_join(app.config['UPLOAD_FOLDER'], str(editItem.user_id) + "_" + editItem.picture))):
+				print 'deleting old file...'
+				os.remove(safe_join(app.config['UPLOAD_FOLDER'], str(editItem.user_id) + "_" + editItem.picture))
+			# save new file
+			file.save(safe_join(app.config['UPLOAD_FOLDER'], str(editItem.user_id) + "_" + filename))
+			editItem.picture = filename
+			print 'updated file!'
+
 		session.add(editItem)
 		session.commit()
 		return redirect(url_for('item', category_name=request.form['category_name'], item_name=editItem.name))
@@ -384,6 +418,11 @@ def getUserID(email):
 		return user.id
 	except:
 		return None
+
+# upload functions
+def allowed_file(filename):
+	return '.' in filename and \
+		   filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
 
 # if run as a main function
 if __name__ == '__main__':

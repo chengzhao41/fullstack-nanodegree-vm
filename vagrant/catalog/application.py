@@ -7,6 +7,11 @@ from create_db import Base, Category, Item, User
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import FlowExchangeError
 from werkzeug import secure_filename
+from flask.ext.seasurf import SeaSurf
+from werkzeug.contrib.atom import AtomFeed
+from urlparse import urljoin
+from functools import wraps
+
 import httplib2
 import json
 import requests
@@ -15,6 +20,7 @@ import string
 import os
 
 app = Flask(__name__, static_url_path = "/images", static_folder = "images")
+csrf = SeaSurf(app)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 UPLOAD_FOLDER = '/Users/chengzhao/Git/fullstack-nanodegree-vm/vagrant/catalog/images'
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
@@ -31,7 +37,18 @@ Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
+# decorator
+def login_required(f):
+	@wraps(f)
+	def decorated_function(*args, **kwargs):
+		if 'username' in login_session:
+			return f(*args, **kwargs)
+		else:
+			return redirect(url_for('showLogin', next=request.url))
+	return decorated_function
+
 # Create anti-forgery state token
+@csrf.exempt
 @app.route('/login')
 def showLogin():
 	# clearing the login session just in case
@@ -42,6 +59,7 @@ def showLogin():
 	print login_session
 	return render_template('login.html', STATE=state)
 
+@csrf.exempt
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
 	# Validate state token
@@ -151,6 +169,7 @@ def gdisconnect():
 		response.headers['Content-Type'] = 'application/json'
 		return response
 
+@csrf.exempt
 @app.route('/fbconnect', methods=['POST'])
 def fbconnect():
 	if request.args.get('state') != login_session['state']:
@@ -288,8 +307,11 @@ def category(category_name):
 @app.route('/catalog/<category_name>/<item_name>/')
 def item(category_name, item_name):
 	item = session.query(Item).filter_by(name=item_name).one()
-	filename = str(item.user_id) + "_" + item.picture
-	print filename
+	if item.picture is None:
+		filename = None
+	else:
+		filename = str(item.user_id) + "_" + item.picture
+		print filename
 	if 'user_id' not in login_session or item.user_id != login_session['user_id']:
 		print 'public item!'
 		return render_template('publicItem.html', item=item, category=category, filename = filename)
@@ -299,9 +321,8 @@ def item(category_name, item_name):
 
 # CRUD functions
 @app.route("/catalog/<item_name>/delete", methods=['GET', 'POST'])
+@login_required
 def deleteItem(item_name):
-	if 'user_id' not in login_session:
-		return redirect('/login')
 	itemToDelete = session.query(Item).filter_by(name=item_name).one()
 	if login_session['user_id'] != itemToDelete.user_id:
 		return "<script>function myFunction() {alert('You are not authorized to delete this item, as it is not yours.');}</script>" \
@@ -309,7 +330,7 @@ def deleteItem(item_name):
 	if request.method == 'POST':
 		category_name = itemToDelete.category.name
 		# delete file if it exists
-		if (os.path.isfile(safe_join(app.config['UPLOAD_FOLDER'], str(itemToDelete.user_id) + "_" + itemToDelete.picture))):
+		if (itemToDelete.picture is not None and os.path.isfile(safe_join(app.config['UPLOAD_FOLDER'], str(itemToDelete.user_id) + "_" + itemToDelete.picture))):
 			os.remove(safe_join(app.config['UPLOAD_FOLDER'], str(itemToDelete.user_id) + "_" + itemToDelete.picture))
 		session.delete(itemToDelete)
 		session.commit()
@@ -318,20 +339,25 @@ def deleteItem(item_name):
 		return render_template('deleteItem.html', item=itemToDelete)
 
 @app.route("/catalog/<category_name>/new", methods=['GET', 'POST'])
+@login_required
 def newItem(category_name):
-	if 'username' not in login_session:
-		return redirect('/login')
 	if request.method == 'POST':
 		file = request.files['file']
 		if file and allowed_file(file.filename):
 			print 'saving files...'
 			filename = secure_filename(file.filename)
 			file.save(safe_join(app.config['UPLOAD_FOLDER'], str(getUserID(login_session['email'])) + "_" + filename))
-			print 'saved!'
+			print 'saved file!'
 			
 		category = session.query(Category).filter_by(name=request.form['category_name']).one()
-		newItem = Item(name=request.form['name'], description=request.form['description'], category_id=category.id, \
-			user_id=getUserID(login_session['email']), picture=filename)
+		try:
+			filename
+		except NameError:
+			newItem = Item(name=request.form['name'], description=request.form['description'], category_id=category.id, \
+				user_id=getUserID(login_session['email']))
+		else:			
+			newItem = Item(name=request.form['name'], description=request.form['description'], category_id=category.id, \
+				user_id=getUserID(login_session['email']), picture=filename)
 		session.add(newItem)
 		session.commit()
 		return redirect(url_for('item', category_name=request.form['category_name'], item_name=newItem.name))
@@ -340,9 +366,8 @@ def newItem(category_name):
 		return render_template('newItem.html', category_name=category_name, categories=categories)
 
 @app.route("/catalog/<item_name>/edit", methods=['GET', 'POST'])
+@login_required
 def updateItem(item_name):
-	if 'username' not in login_session:
-		return redirect('/login')
 	editItem = session.query(Item).filter_by(name=item_name).one()
 	if login_session['user_id'] != editItem.user_id:
 		return "<script>function myFunction() {alert('You are not authorized to edit this item, as it is not yours.');}</script><body onload='myFunction()''>"
@@ -391,6 +416,34 @@ def categoryJSON(category_name):
 def itemJSON(category_name, item_name):
 	item = session.query(Item).filter_by(name=item_name).one()
 	return jsonify(Item = item.serialize)
+
+# Atom
+def make_external(url):
+	return urljoin(request.url_root, url)
+
+@app.route('/catalog.atom')
+def catalogAtom():
+	feed = AtomFeed('Recent Categories',
+					feed_url=request.url, url=request.url_root)
+	categories = session.query(Category).order_by(Category.last_modified_time.desc()).limit(15).all()
+	for category in categories:
+		feed.add(category.name, unicode(category.name),
+				 content_type='html',
+				 url=make_external(category.name),
+				 updated=category.last_modified_time)
+	return feed.get_response()
+
+@app.route('/catalog/<category_name>.atom')
+def itemAtom(category_name):
+	feed = AtomFeed('Recent Items in ' + category_name,
+					feed_url=request.url, url=request.url_root)
+	items = session.query(Item).join(Category).filter(Category.name==category_name).order_by(Item.last_modified_time.desc()).limit(15).all()
+	for item in items:
+		feed.add(item.name, unicode(item.description),
+				 content_type='html',
+				 url=make_external('/catalog/' + category_name + '/' + item.name),
+				 updated=item.last_modified_time)
+	return feed.get_response()
 
 # User Helper Functions
 def createUser(login_session):

@@ -26,6 +26,7 @@
 				<dt>Upload Picture:</dt>
 					<dd><input type=file name=file></dd>
 			</dl>
+		<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
 		<input type='submit' value='Create'>
 		<a href = '{{url_for('category', category_name = category_name)}}'>Cancel</a>
 	</form>

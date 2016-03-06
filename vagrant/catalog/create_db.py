@@ -3,7 +3,7 @@ import sys
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, TIMESTAMP, func
 
 Base = declarative_base()
 
@@ -20,15 +20,17 @@ class Category(Base):
 
 	id = Column(Integer, primary_key=True)
 	name = Column(String(250), nullable=False)
+	last_modified_time = Column(TIMESTAMP, server_default=func.now(), onupdate=func.current_timestamp())
 	items = relationship("Item", single_parent=True)
-
+	
 	@property
 	def serialize(self):
 		"""Return object data in easily serializeable format"""
 		return {
 			'id': self.id,
 			'name': self.name,
-			'items': [i.serialize for i in self.items]
+			'items': [i.serialize for i in self.items],
+			'last_modified_time': self.last_modified_time.strftime("%a, %d %b %Y %H:%M:%S")
 		}
 
 class Item(Base):
@@ -38,6 +40,7 @@ class Item(Base):
 	name = Column(String(250), nullable=False)
 	description = Column(String(250))
 	picture = Column(String(250))
+	last_modified_time = Column(TIMESTAMP, server_default=func.now(), onupdate=func.current_timestamp())
 	category_id = Column(Integer, ForeignKey('category.id'))
 	user_id = Column(Integer, ForeignKey('user.id'))
 	category = relationship(Category)
@@ -52,7 +55,8 @@ class Item(Base):
 			'description': self.description,
 			'picture': self.picture,
 			'category_id': self.category_id,
-			'user_id': self.user_id
+			'user_id': self.user_id,
+			'last_modified_time': self.last_modified_time.strftime("%a, %d %b %Y %H:%M:%S")
 		}
 
 engine = create_engine('sqlite:///catalog.db')
